@@ -18,7 +18,7 @@ export function setupSwagger(app: Express) {
       },
       servers: [
         {
-          url: "http://localhost:5000/api",
+          url: "http://localhost:5000",
           description: "Local server",
         },
         ...(ngrokUrl
@@ -31,14 +31,16 @@ export function setupSwagger(app: Express) {
           : []),
       ],
     },
-    
+
     apis: ["./src/controllers/**/*.ts", "./src/routes/**/*.ts"],
   };
 
   const swaggerSpec = swaggerJsdoc(swaggerOptions);
-
+ app.get("/api/docs/swagger.json", (req, res) => {
+    res.json(swaggerSpec);
+  });
   app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-
+ 
   if (ngrokUrl) {
     console.log(`Swagger Docs available at: ${ngrokUrl}/api/docs`);
   }

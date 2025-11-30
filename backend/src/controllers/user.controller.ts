@@ -90,7 +90,7 @@ function createToken(id: string, email: string) {
 // ---------- REGISTER ----------
 /**
  * @swagger
- * /auth/register:
+ * /register:
  *   post:
  *     summary: Register a new user
  *     tags: [Authentication]
@@ -173,7 +173,7 @@ export const register = async (req: Request, res: Response) => {
 // ---------- REQUEST OTP ----------
 /**
  * @swagger
- * /auth/request-otp:
+ * /requestOtp:
  *   post:
  *     summary: Request OTP for login
  *     tags: [Authentication]
@@ -263,15 +263,15 @@ export const requestOtp = async (req: Request, res: Response) => {
       },
     });
 
-    // 5) Send the email
-    await transporter.sendMail({
-      from: `"My App" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: "Your Login Code",
-      text: `Your login code is ${code}. It expires in 5 minutes.`,
-    });
+    // // 5) Send the email
+    // await transporter.sendMail({
+    //   from: `"My App" <${process.env.EMAIL_USER}>`,
+    //   to: email,
+    //   subject: "Your Login Code",
+    //   text: `Your login code is ${code}. It expires in 5 minutes.`,
+    // });
 
-    res.status(200).json({ msg: "OTP sent to your email" });
+    res.status(200).json({ msg: "OTP sent to your email",debugOtp:code });
 
   } catch (error) {
     res.status(500).json({ error: "Server error", details: error });
@@ -281,7 +281,7 @@ export const requestOtp = async (req: Request, res: Response) => {
 // ---------- VERIFY OTP ----------
 /**
  * @swagger
- * /auth/verify-otp:
+ * /verifyOtp:
  *   post:
  *     summary: Verify OTP and login
  *     tags: [Authentication]

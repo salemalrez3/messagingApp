@@ -27,7 +27,7 @@ app.use(cors({
 }));
 
 app.use("/msgs" ,auth, msgsRouter);
-app.use("/",userRouter)
+app.use("/",userRouter);
 setupSwagger(app);
 
 const PORT = process.env.PORT || 5000;

@@ -3,7 +3,7 @@ import { register, requestOtp, verifyOtp } from "../controllers/user.controller"
 
 const router = Router();
 
-router.get("/register",register );
+router.post("/register",register );
 router.post("/requestOtp", requestOtp);
 router.post("/verifyOtp", verifyOtp);
 
