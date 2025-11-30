@@ -9,6 +9,9 @@
     "postinstall": "npx prisma generate",
     "fly:deploy": "fly deploy"
   },
+   "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",

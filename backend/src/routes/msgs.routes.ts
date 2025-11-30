@@ -3,7 +3,7 @@ import { getMsgs, sendMsg } from "../controllers/msgs.controller";
 
 const router = Router();
 
-router.get("/msgs", getMsgs);
-router.post("/msgs", sendMsg);
+router.get("/", getMsgs);
+router.post("/", sendMsg);
 
 export default router;  

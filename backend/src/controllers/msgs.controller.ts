@@ -9,9 +9,11 @@ import prisma from "../db";
  *     description: Returns the latest messages in a chat using cursor-based pagination.
  *     tags:
  *       - Messages
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
- *       - in: header
- *         name: id
+ *       - in: query
+ *         name: chatId
  *         required: true
  *         description: Chat ID
  *         schema:
@@ -30,15 +32,19 @@ import prisma from "../db";
  *       200:
  *         description: Messages retrieved successfully
  *       400:
- *         description: Missing data
+ *         description: Missing chatId
  *       500:
  *         description: Server error
  */
 export const getMsgs = async (req: Request, res: Response) => {
   try {
-    const chatId = String(req.headers.id);
+    const chatId = String(req.query.chatId);
     const take = Number(req.query.limit) || 20;
-    const cursor = String(req.query.cursor) || undefined;
+    const cursor = req.query.cursor ? String(req.query.cursor) : undefined;
+
+    if (!chatId) {
+      return res.status(400).json({ error: "chatId is required" });
+    }
 
     const messages = await prisma.message.findMany({
       where: { chatId },
@@ -49,9 +55,7 @@ export const getMsgs = async (req: Request, res: Response) => {
     });
 
     const hasNext = messages.length > take;
-    if (hasNext) {
-      messages.pop();
-    }
+    if (hasNext) messages.pop();
 
     const nextCursor = hasNext ? messages[messages.length - 1].id : null;
 
@@ -69,20 +73,16 @@ export const getMsgs = async (req: Request, res: Response) => {
  * /msgs:
  *   post:
  *     summary: Send a message to a chat
- *     description: Creates a new message and updates the user's read status.
+ *     description: Creates a message for the authenticated user.
  *     tags:
  *       - Messages
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
- *       - in: header
- *         name: id
+ *       - in: query
+ *         name: chatId
  *         required: true
  *         description: Chat ID
- *         schema:
- *           type: string
- *       - in: header
- *         name: userId
- *         required: true
- *         description: Sender user ID
  *         schema:
  *           type: string
  *     requestBody:
@@ -99,7 +99,7 @@ export const getMsgs = async (req: Request, res: Response) => {
  *       201:
  *         description: Message sent successfully
  *       400:
- *         description: Missing data
+ *         description: Missing chatId or text
  *       403:
  *         description: User is not part of this chat
  *       404:
@@ -109,12 +109,12 @@ export const getMsgs = async (req: Request, res: Response) => {
  */
 export const sendMsg = async (req: Request, res: Response) => {
   try {
-    const chatId = String(req.headers.id);
-    const msgTxt = String(req.body.text).trimEnd();
-    const senderId = String(req.headers.userId);
+    const chatId = String(req.query.chatId);
+    const msgTxt = String(req.body.text || "").trimEnd();
+    const senderId =(req as any).user.id;
 
-    if (!chatId || !senderId || !msgTxt) {
-      return res.status(400).json({ error: "Missing data" });
+    if (!chatId || !msgTxt) {
+      return res.status(400).json({ error: "chatId and text are required" });
     }
 
     const chat = await prisma.chat.findUnique({
@@ -124,7 +124,7 @@ export const sendMsg = async (req: Request, res: Response) => {
 
     if (!chat) return res.status(404).json({ error: "Chat not found" });
 
-    const userInChat = chat.participants.find((user) => user.id == senderId);
+    const userInChat = chat.participants.some((p) => p.id === senderId);
     if (!userInChat) {
       return res.status(403).json({ error: "Not part of this chat" });
     }
