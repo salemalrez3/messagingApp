@@ -11,7 +11,7 @@ import chatRouter from "./routes/chat.routes";
 import profileRouter from "./routes/profile.routes";
 import path from "path";
 import { auth } from "./middleware/auth";
-
+import os from "os"; // ADD THIS!
 
 const app = express();
 const server = http.createServer(app);
@@ -20,22 +20,109 @@ const dbPath = process.env.NODE_ENV === 'production'
   ? '/data/dev.db' 
   : path.join(__dirname, '../prisma/dev.db');
 
+// ADD: Auto-detect IP function
+function getLocalIP(): string {
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name] || []) {
+      if (iface.family === 'IPv4' && !iface.internal && iface.address.startsWith('192.168.')) {
+        return iface.address;
+      }
+    }
+  }
+  return 'localhost';
+}
 
-app.use(helmet());
-app.use(express.json());
+const YOUR_IP = getLocalIP(); // This will be 192.168.1.108
+const PORT = parseInt(process.env.PORT || '5000', 10);
+
+// CORS
 app.use(cors({
-  origin: [process.env.FRONTEND_URL || "http://localhost:5173"].filter(Boolean),
+  origin: '*', 
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-app.use("/chats" ,auth, chatRouter);
-app.use("/msgs" ,auth, msgsRouter);
-app.use("/profile" ,auth, profileRouter);
-app.use("/",userRouter);
-setupSwagger(app);
+app.use(helmet({
+  contentSecurityPolicy: false,
+}));
+app.use(express.json());
 
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT} with WebSocket support`);
-  console.log(`📊 SQLite path: ${dbPath}`);
+// ADD: Test endpoint for mobile (NO AUTH NEEDED!)
+app.get("/ping", (req, res) => {
+  res.json({
+    success: true,
+    message: "✅ Server is running!",
+    serverTime: new Date().toISOString(),
+    serverIP: YOUR_IP,
+    port: PORT,
+    clientIP: req.ip,
+    endpoints: {
+      docs: "/api/docs",
+      apiBase: "/",
+      testAuth: "/ping-auth"
+    }
+  });
+});
+
+app.get("/ping-auth", auth, (req: any, res) => {
+  res.json({
+    success: true,
+    message: "✅ Auth is working!",
+    user: req.user,
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.use("/chats", auth, chatRouter);
+app.use("/msgs", auth, msgsRouter);
+app.use("/profile", auth, profileRouter);
+app.use("/", userRouter);
+
+// Pass your IP to swagger
+setupSwagger(app, YOUR_IP, PORT);
+
+server.listen({
+  port: PORT,
+  host: '0.0.0.0' 
+}, () => {
+  console.log(`
+╔══════════════════════════════════════════════════════════╗
+║                     SERVER IS RUNNING                    ║
+╠══════════════════════════════════════════════════════════╣
+║                                                          ║
+║     FOR MOBILE TESTING (Your Phone):                     ║
+║     http://${YOUR_IP}:${PORT}/api/docs                   ║
+║     http://${YOUR_IP}:${PORT}/ping                       ║
+║                                                          ║
+║     FOR LOCAL BROWSER (Your Computer):                   ║
+║     http://localhost:${PORT}/api/docs                    ║
+║     http://localhost:${PORT}/ping                        ║
+║                                                          ║
+║      API BASE URL for Mobile App:                        ║
+║      http://${YOUR_IP}:${PORT}                           ║
+║                                                          ║
+║      Database path: ${dbPath}                            ║
+║                                                          ║
+╚══════════════════════════════════════════════════════════╝
+
+🔥 QUICK TEST:
+   On your phone browser, open: http://${YOUR_IP}:${PORT}/ping
+   
+   If you see JSON, SUCCESS!
+   If you see error, check:
+   1. Same WiFi ✓
+   2. Firewall off ✓
+   3. IP correct: ${YOUR_IP} ✓
+`);
+});
+
+server.on('error', (error: any) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`❌ PORT ${PORT} is already in use!`);
+    console.log(`💡 Try: kill -9 $(lsof -t -i:${PORT}) or use different port`);
+    process.exit(1);
+  }
+  console.error('❌ Server error:', error);
 });

@@ -1,12 +1,16 @@
 import swaggerJsdoc from "swagger-jsdoc";
 import swaggerUi from "swagger-ui-express";
-import dotenv from "dotenv";
 import { Express } from "express";
 
-dotenv.config();
 
-export function setupSwagger(app: Express) {
+export function setupSwagger(app: Express, yourIP: string, port: number) {
   const ngrokUrl = process.env.NGROK_URL;
+
+  const servers = [
+    { url: `http://${yourIP}:${port}`, description: "Mobile Access (Your IP)" },
+    { url: `http://localhost:${port}`, description: "Local Development" },
+    ...(ngrokUrl ? [{ url: `${ngrokUrl}`, description: "Public (Ngrok)" }] : []),
+  ];
 
   const swaggerOptions = {
     definition: {
@@ -16,14 +20,7 @@ export function setupSwagger(app: Express) {
         version: "1.0.0",
         description: "API documentation for your messaging backend",
       },
-
-      servers: [
-        { url: "http://localhost:5000", description: "Local server" },
-        ...(ngrokUrl
-          ? [{ url: `${ngrokUrl}`, description: "Ngrok public" }]
-          : []),
-      ],
-
+      servers: servers, 
       components: {
         securitySchemes: {
           bearerAuth: {
@@ -33,21 +30,26 @@ export function setupSwagger(app: Express) {
           },
         },
       },
-
       security: [{ bearerAuth: [] }],
     },
-
     apis: ["./src/controllers/**/*.ts", "./src/routes/**/*.ts"],
   };
 
   const swaggerSpec = swaggerJsdoc(swaggerOptions);
 
+  // Optional: Serve raw JSON
   app.get("/api/docs/swagger.json", (req, res) => res.json(swaggerSpec));
 
   const uiOptions = {
     explorer: true,
     swaggerOptions: {
       persistAuthorization: true,
+      urls: [
+        {
+          url: `/api/docs/swagger.json`,
+          name: "API v1",
+        },
+      ],
     },
   };
 
@@ -57,6 +59,10 @@ export function setupSwagger(app: Express) {
     swaggerUi.setup(swaggerSpec, uiOptions)
   );
 
-  if (ngrokUrl) console.log(`Swagger Docs available at: ${ngrokUrl}/api/docs`);
-  console.log(`Swagger Docs available at: http://localhost:5000/api/docs`);
+  console.log(`
+📚 SWAGGER DOCS AVAILABLE AT:
+   Mobile:    http://${yourIP}:${port}/api/docs
+   Local:     http://localhost:${port}/api/docs
+   ${ngrokUrl ? `Public:    ${ngrokUrl}/api/docs` : ""}
+`);
 }
