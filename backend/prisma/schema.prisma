@@ -17,7 +17,7 @@ enum MsgStatus {
 model User {
   id        String       @id @default(uuid())
   username  String?
-  phone     String?    @unique
+  phone     String?    
   email     String    @unique
   password  String
   profilePic String?
