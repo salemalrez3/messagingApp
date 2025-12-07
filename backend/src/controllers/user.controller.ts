@@ -3,6 +3,7 @@ import prisma from "../db";
 import bcrypt from "bcryptjs";
 import { transporter } from "../config/email";
 import jwt from "jsonwebtoken";
+import { error } from "node:console";
 const JWT_SECRET = String(process.env.JWT_SECRET);
 
 // ---------- OTP GENERATOR ----------
@@ -70,6 +71,8 @@ export function generateOtp() {
  *           format: email
  *         username:
  *           type: string
+ *         phone:
+ *           type: string
  *     Error:
  *       type: object
  *       properties:
@@ -90,9 +93,9 @@ export function createToken(userId: string, email?: string, tokenVersion = 0) {
  * @swagger
  * /register:
  *   post:
- *     summary: Register a new user
+ *     summary: Register a new user - Step 1
  *     tags: [Authentication]
- *     description: Create a new user account with email, password, phone, and username
+ *     description: Start registration by sending OTP to email
  *     requestBody:
  *       required: true
  *       content:
@@ -123,16 +126,27 @@ export function createToken(userId: string, email?: string, tokenVersion = 0) {
  *                 example: "john_doe"
  *     responses:
  *       201:
- *         description: User created successfully
+ *         description: OTP sent successfully
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 user:
- *                   $ref: '#/components/schemas/User'
+ *                 message:
+ *                   type: string
+ *                   example: "OTP sent to email"
+ *                 debug_otp:
+ *                   type: string
+ *                   description: "Only in development"
+ *                   example: "123456"
  *       400:
  *         description: Bad request - Missing required fields
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       409:
+ *         description: User already exists
  *         content:
  *           application/json:
  *             schema:
@@ -146,25 +160,196 @@ export function createToken(userId: string, email?: string, tokenVersion = 0) {
  */
 export const register = async (req: Request, res: Response) => {
   try {
+    const email = String(req.body.email).toLowerCase().trim();
     const password = String(req.body.password);
-    const phone = String(req.body.phone);
-    const email = String(req.body.email);
-    const username = String(req.body.username);
+    const username = String(req.body.username).trim();
+    const phone = String(req.body.phone).trim();
 
-    if (!password || !phone || !username || !email) {
-      return res.status(400).json({ error: "Missing data" });
+    if (!password || !username || !email ) {
+      return res.status(400).json({ error: "Missing required fields" });
     }
 
-    const hashed = await bcrypt.hash(password, 10);
-
-    const user = await prisma.user.create({
-      data: { password: hashed, phone, username, email },
+    // Check if user already exists
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email },
+          { username },
+          { phone }
+        ]
+      }
     });
 
-    res.status(201).json({ user });
+    if (existingUser) {
+      return res.status(409).json({ error: "User with this email, username or phone already exists" });
+    }
+
+    const otp = generateOtp();
+    
+    await prisma.oTP.deleteMany({where:{email}});
+    await prisma.oTP.create({
+      data:{
+        code:otp,
+        email,
+        expiresAt:new Date(Date.now() + 5 * 60 * 1000)
+      }
+    });
+
+    res.status(201).json({ 
+      message: "OTP sent to email. Use /verify-register endpoint with OTP to complete registration.",
+      debug_otp: otp 
+    });
 
   } catch (error) {
     res.status(500).json({ error: "Server error", details: error });
+  }
+};
+
+// ---------- VERIFY REGISTRATION ----------
+/**
+ * @swagger
+ * /verify-register:
+ *   post:
+ *     summary: Verify registration - Step 2
+ *     tags: [Authentication]
+ *     description: Complete registration by verifying OTP and creating user account
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *               - otp
+ *               - phone
+ *               - username
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: user@example.com
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 example: "securepassword123"
+ *               otp:
+ *                 type: string
+ *                 example: "123456"
+ *               phone:
+ *                 type: string
+ *                 example: "+1234567890"
+ *               username:
+ *                 type: string
+ *                 example: "john_doe"
+ *     responses:
+ *       201:
+ *         description: User created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "User created successfully"
+ *                 token:
+ *                   type: string
+ *                   example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *                 user:
+ *                   $ref: '#/components/schemas/UserResponse'
+ *       400:
+ *         description: Missing required fields
+ *       401:
+ *         description: Invalid or expired OTP
+ *       409:
+ *         description: User already exists
+ *       500:
+ *         description: Internal server error
+ */
+export const verifyRegister = async (req:Request,res:Response)=>{
+  try {
+    const password = String(req.body.password);
+    const email = String(req.body.email).toLowerCase().trim();
+    const otp = String(req.body.otp);
+    const phone = String(req.body.phone).trim();
+    const username = String(req.body.username).trim();
+
+    if(!password || !email || !otp ||  !username){
+      return res.status(400).json({error:"All fields are required: email, password, otp, username"});
+    }
+
+    // Check if user already exists (double-check)
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email },
+          { username },
+          { phone }
+        ]
+      }
+    });
+
+    if (existingUser) {
+      return res.status(409).json({ error: "User with this email, username or phone already exists" });
+    }
+
+    // Find OTP and check expiration
+    const valid = await prisma.oTP.findFirst({
+      where: {
+        email,
+        code: otp,
+        expiresAt: {
+          gt: new Date() 
+        }
+      }
+    });
+    
+    if (!valid){
+      return res.status(401).json({error:"Invalid or expired OTP"});
+    }
+
+    if (valid.expiresAt < new Date()) {
+      await prisma.oTP.delete({ where: { id: valid.id } });
+      return res.status(401).json({error:"OTP has expired"});
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    const user = await prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        phone,
+        username
+      },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        phone: true,
+        createdAt: true
+      }
+    });
+    
+    const token = createToken(user.id, email);
+    await prisma.oTP.delete({ where: { id: valid.id } });
+    
+    res.status(201).json({
+      token,
+      user,
+      message: "User created successfully"
+    });
+
+  } catch (error: any) {
+    if (error.code === 'P2002') {
+      return res.status(409).json({ 
+        error: "User with this email, username or phone already exists" 
+      });
+    }
+    
+    res.status(500).json({ error: "Server error", details: error.message });
   }
 };
 
@@ -239,18 +424,14 @@ export const requestOtp = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Missing email or password" });
     }
 
-    // 1) Find user
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    // 2) Compare password
     const match = await bcrypt.compare(password, user.password);
     if (!match) return res.status(401).json({ error: "Invalid password" });
 
-    // 3) Generate OTP
     const code = generateOtp();
 
-    // 4) Save OTP row in DB (delete previous)
     await prisma.oTP.deleteMany({ where: { email } });
 
     await prisma.oTP.create({
@@ -346,44 +527,47 @@ export const verifyOtp = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Missing email or otp" });
     }
 
-    // 1) Find matching OTP
     const record = await prisma.oTP.findFirst({
-      where: { email, code: otp },
+      where: { 
+        email, 
+        code: otp,
+        expiresAt: {
+          gt: new Date() 
+        }
+      },
     });
 
     if (!record) {
-      return res.status(400).json({ error: "Invalid code" });
+      return res.status(400).json({ error: "Invalid or expired OTP" });
     }
 
-    // 2) Check expiry
     if (record.expiresAt < new Date()) {
+      await prisma.oTP.delete({ where: { id: record.id } });
       return res.status(400).json({ error: "OTP expired" });
     }
 
-    // 3) Delete OTP so it can't be reused
     await prisma.oTP.delete({ where: { id: record.id } });
-     const user = await prisma.user.findUnique({
+    
+    const user = await prisma.user.findUnique({
       where: { email },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        phone: true
+      }
     });
+    
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // 4) Create JWT
-    const token = createToken(
-       user.id,
-      user.email,
-    );
+    const token = createToken(user.id, user.email);
 
-    // 5) Send token to frontend
     return res.status(200).json({
       msg: "OTP verified.",
       token,
-      user: {
-        id: user.id,
-        email: user.email,
-        username: user.username,
-      },
+      user
     });
 
   } catch (error) {
@@ -439,10 +623,18 @@ export const resetPassword = async (req: Request, res: Response) => {
     if (!email || !otp || !newPassword)
       return res.status(400).json({ error: "Missing data" });
 
-    const record = await prisma.oTP.findFirst({ where: { email, code: otp } });
+    const record = await prisma.oTP.findFirst({ 
+      where: { 
+        email, 
+        code: otp,
+        expiresAt: {
+          gt: new Date() 
+        }
+      } 
+    });
 
     if (!record)
-      return res.status(400).json({ error: "Invalid code" });
+      return res.status(400).json({ error: "Invalid or expired OTP" });
 
     if (record.expiresAt < new Date())
       return res.status(400).json({ error: "OTP expired" });
@@ -458,7 +650,7 @@ export const resetPassword = async (req: Request, res: Response) => {
       data: { password: hashed },
     });
 
-    await prisma.oTP.deleteMany({ where: { id: record.id } });
+    await prisma.oTP.delete({ where: { id: record.id } });
 
     return res.status(200).json({ msg: "Password reset successful." });
 
@@ -510,17 +702,13 @@ export const forgotPassword = async (req: Request, res: Response) => {
 
     if (!email) return res.status(400).json({ error: "Email required" });
 
-    // Check that user exists
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    // Generate OTP
     const code = generateOtp();
 
-    // Delete old OTPs
     await prisma.oTP.deleteMany({ where: { email } });
 
-    // Save new OTP
     await prisma.oTP.create({
       data: {
         email,
@@ -538,5 +726,3 @@ export const forgotPassword = async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Server error", details: error });
   }
 };
-
-
