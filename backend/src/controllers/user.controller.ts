@@ -48,7 +48,6 @@ export function generateOtp() {
  *           format: email
  *         phone:
  *           type: string
- *           nullable: true
  *         username:
  *           type: string
  *         password:
@@ -73,7 +72,6 @@ export function generateOtp() {
  *           type: string
  *         phone:
  *           type: string
- *           nullable: true
  *     Error:
  *       type: object
  *       properties:
@@ -83,14 +81,6 @@ export function generateOtp() {
  *         details:
  *           type: string
  *           example: "Detailed error information"
- *         missing:
- *           type: array
- *           items:
- *             type: string
- *         conflictFields:
- *           type: array
- *           items:
- *             type: string
  */
 
 export function createToken(userId: string, email?: string, tokenVersion = 0) {
@@ -127,7 +117,6 @@ export function createToken(userId: string, email?: string, tokenVersion = 0) {
  *                 example: "securepassword123"
  *               phone:
  *                 type: string
- *                 nullable: true
  *                 example: "+1234567890"
  *               username:
  *                 type: string
@@ -169,52 +158,49 @@ export function createToken(userId: string, email?: string, tokenVersion = 0) {
  */
 export const register = async (req: Request, res: Response) => {
   try {
-    const email = String(req.body.email).toLowerCase().trim();
-    const password = String(req.body.password);
-    const phone = req.body.phone ? String(req.body.phone).trim() : null; // Phone is now optional
+    const email = req.body.email ? String(req.body.email).toLowerCase().trim() : "";
+    const password = req.body.password ? String(req.body.password) : "";
+    const username = req.body.username ? String(req.body.username).trim() : "";
 
-    
-    const missingFields = [];
-    if (!email) missingFields.push("email");
-    if (!password) missingFields.push("password");
-
-    if (missingFields.length > 0) {
-      return res.status(400).json({ 
-        error: "Missing required fields", 
-        missing: missingFields 
-      });
+    // Check missing fields with specific messages
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+    if (!password) {
+      return res.status(400).json({ error: "Password is required" });
+    }
+    if (!username) {
+      return res.status(400).json({ error: "Username is required" });
     }
 
-    // Check if user already exists - only check by phone if provided
-    const whereCondition: any = {
-      OR: [
-        { email },
-      ]
-    };
-
+    // Check if user already exists
     const existingUser = await prisma.user.findFirst({
-      where: whereCondition
+      where: {
+        OR: [
+          { email },
+          { username },
+        ]
+      }
     });
 
     if (existingUser) {
-      const conflictFields = [];
-      if (existingUser.email === email) conflictFields.push("email");
-      if (phone && existingUser.phone === phone) conflictFields.push("phone");
-      
-      return res.status(409).json({ 
-        error: "User with these details already exists",
-        conflictFields 
-      });
+      if (existingUser.email === email) {
+        return res.status(409).json({ error: "User with this email already exists" });
+      }
+      if (existingUser.username === username) {
+        return res.status(409).json({ error: "User with this username already exists" });
+      }
     }
 
     const otp = generateOtp();
     
-    await prisma.oTP.deleteMany({ where: { email } });
+    await prisma.oTP.deleteMany({where:{email}});
     await prisma.oTP.create({
-      data: {
-        code: otp,
+      data:{
+        code:otp,
         email,
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000)
+        expiresAt:new Date(Date.now() + 5 * 60 * 1000)
+        
       }
     });
 
@@ -223,8 +209,8 @@ export const register = async (req: Request, res: Response) => {
       debug_otp: otp 
     });
 
-  } catch (error) {
-    res.status(500).json({ error: "Server error", details: error });
+  } catch (error: any) {
+    res.status(500).json({ error: "Server error", details: error.message });
   }
 };
 
@@ -246,6 +232,7 @@ export const register = async (req: Request, res: Response) => {
  *               - email
  *               - password
  *               - otp
+ *               - phone
  *               - username
  *             properties:
  *               email:
@@ -261,7 +248,6 @@ export const register = async (req: Request, res: Response) => {
  *                 example: "123456"
  *               phone:
  *                 type: string
- *                 nullable: true
  *                 example: "+1234567890"
  *               username:
  *                 type: string
@@ -284,72 +270,53 @@ export const register = async (req: Request, res: Response) => {
  *                   $ref: '#/components/schemas/UserResponse'
  *       400:
  *         description: Missing required fields
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *       401:
  *         description: Invalid or expired OTP
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *       409:
  *         description: User already exists
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *       500:
  *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
-export const verifyRegister = async (req: Request, res: Response) => {
+export const verifyRegister = async (req:Request,res:Response)=>{
   try {
-    const password = String(req.body.password);
-    const email = String(req.body.email).toLowerCase().trim();
-    const otp = String(req.body.otp);
-    const phone = req.body.phone ? String(req.body.phone).trim() : null; // Phone is now optional
-    const username = String(req.body.username).trim();
+    const email = req.body.email ? String(req.body.email).toLowerCase().trim() : "";
+    const password = req.body.password ? String(req.body.password) : "";
+    const otp = req.body.otp ? String(req.body.otp) : "";
+    const phone = req.body.phone ? String(req.body.phone).trim() : "";
+    const username = req.body.username ? String(req.body.username).trim() : "";
 
-    // Check for required fields with specific error messages
-    const missingFields = [];
-    if (!email) missingFields.push("email");
-    if (!password) missingFields.push("password");
-    if (!otp) missingFields.push("otp");
-    if (!username) missingFields.push("username");
-
-    if (missingFields.length > 0) {
-      return res.status(400).json({ 
-        error: "Missing required fields",
-        missing: missingFields
-      });
+    // Check missing fields with specific messages
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+    if (!password) {
+      return res.status(400).json({ error: "Password is required" });
+    }
+    if (!otp) {
+      return res.status(400).json({ error: "OTP is required" });
+    }
+    
+    if (!username) {
+      return res.status(400).json({ error: "Username is required" });
     }
 
-    // Check if user already exists - only check by phone if provided
-    const whereCondition: any = {
-      OR: [
-        { email },
-        { username },
-      ]
-    };
+    // Check if user already exists (double-check)
     const existingUser = await prisma.user.findFirst({
-      where: whereCondition
+      where: {
+        OR: [
+          { email },
+          { username },
+        ]
+      }
     });
 
     if (existingUser) {
-      const conflictFields = [];
-      if (existingUser.email === email) conflictFields.push("email");
-      if (existingUser.username === username) conflictFields.push("username");
-      if (phone && existingUser.phone === phone) conflictFields.push("phone");
-      
-      return res.status(409).json({ 
-        error: "User with these details already exists",
-        conflictFields 
-      });
+      if (existingUser.email === email) {
+        return res.status(409).json({ error: "User with this email already exists" });
+      }
+      if (existingUser.username === username) {
+        return res.status(409).json({ error: "User with this username already exists" });
+      }
     }
 
     // Find OTP and check expiration
@@ -363,13 +330,13 @@ export const verifyRegister = async (req: Request, res: Response) => {
       }
     });
     
-    if (!valid) {
-      return res.status(401).json({ error: "Invalid or expired OTP" });
+    if (!valid){
+      return res.status(401).json({error:"Invalid or expired OTP"});
     }
 
     if (valid.expiresAt < new Date()) {
       await prisma.oTP.delete({ where: { id: valid.id } });
-      return res.status(401).json({ error: "OTP has expired" });
+      return res.status(401).json({error:"OTP has expired"});
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -378,7 +345,7 @@ export const verifyRegister = async (req: Request, res: Response) => {
       data: {
         email,
         password: hashedPassword,
-        phone,
+        phone: phone,
         username
       },
       select: {
@@ -401,11 +368,13 @@ export const verifyRegister = async (req: Request, res: Response) => {
 
   } catch (error: any) {
     if (error.code === 'P2002') {
-      // Prisma unique constraint error
-      const field = error.meta?.target?.[0];
-      return res.status(409).json({ 
-        error: `User with this ${field} already exists` 
-      });
+      if (error.meta?.target?.includes('email')) {
+        return res.status(409).json({ error: "User with this email already exists" });
+      }
+      if (error.meta?.target?.includes('username')) {
+        return res.status(409).json({ error: "User with this username already exists" });
+      }
+      return res.status(409).json({ error: "User already exists" });
     }
     
     res.status(500).json({ error: "Server error", details: error.message });
@@ -479,19 +448,14 @@ export const verifyRegister = async (req: Request, res: Response) => {
  */
 export const requestOtp = async (req: Request, res: Response) => {
   try {
-    const email = String(req.body.email);
-    const password = String(req.body.password);
+    const email = req.body.email ? String(req.body.email).toLowerCase().trim() : "";
+    const password = req.body.password ? String(req.body.password) : "";
 
-    // Check for required fields with specific error messages
-    const missingFields = [];
-    if (!email) missingFields.push("email");
-    if (!password) missingFields.push("password");
-
-    if (missingFields.length > 0) {
-      return res.status(400).json({ 
-        error: "Missing required fields",
-        missing: missingFields
-      });
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+    if (!password) {
+      return res.status(400).json({ error: "Password is required" });
     }
 
     const user = await prisma.user.findUnique({ where: { email } });
@@ -512,21 +476,10 @@ export const requestOtp = async (req: Request, res: Response) => {
       },
     });
 
-    // // 5) Send the email
-    // await transporter.sendMail({
-    //   from: `"My App" <${process.env.EMAIL_USER}>`,
-    //   to: email,
-    //   subject: "Your Login Code",
-    //   text: `Your login code is ${code}. It expires in 5 minutes.`,
-    // });
+    res.status(200).json({ msg: "OTP sent to your email", debugOtp: code });
 
-    res.status(200).json({ 
-      msg: "OTP sent to your email", 
-      debugOtp: code 
-    });
-
-  } catch (error) {
-    res.status(500).json({ error: "Server error", details: error });
+  } catch (error: any) {
+    res.status(500).json({ error: "Server error", details: error.message });
   }
 };
 
@@ -593,19 +546,14 @@ export const requestOtp = async (req: Request, res: Response) => {
  */
 export const verifyOtp = async (req: Request, res: Response) => {
   try {
-    const email = String(req.body.email);
-    const otp = String(req.body.otp);
+    const email = req.body.email ? String(req.body.email).toLowerCase().trim() : "";
+    const otp = req.body.otp ? String(req.body.otp) : "";
 
-    // Check for required fields with specific error messages
-    const missingFields = [];
-    if (!email) missingFields.push("email");
-    if (!otp) missingFields.push("otp");
-
-    if (missingFields.length > 0) {
-      return res.status(400).json({ 
-        error: "Missing required fields",
-        missing: missingFields
-      });
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+    if (!otp) {
+      return res.status(400).json({ error: "OTP is required" });
     }
 
     const record = await prisma.oTP.findFirst({
@@ -651,11 +599,12 @@ export const verifyOtp = async (req: Request, res: Response) => {
       user
     });
 
-  } catch (error) {
-    return res.status(500).json({ error: "Server error", details: error });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Server error", details: error.message });
   }
 };
 
+// ---------- RESET PASSWORD ----------
 /**
  * @swagger
  * /resetPassword:
@@ -717,21 +666,18 @@ export const verifyOtp = async (req: Request, res: Response) => {
  */
 export const resetPassword = async (req: Request, res: Response) => {
   try {
-    const email = String(req.body.email);
-    const otp = String(req.body.otp);
-    const newPassword = String(req.body.newPassword);
+    const email = req.body.email ? String(req.body.email).toLowerCase().trim() : "";
+    const otp = req.body.otp ? String(req.body.otp) : "";
+    const newPassword = req.body.newPassword ? String(req.body.newPassword) : "";
 
-    // Check for required fields with specific error messages
-    const missingFields = [];
-    if (!email) missingFields.push("email");
-    if (!otp) missingFields.push("otp");
-    if (!newPassword) missingFields.push("newPassword");
-
-    if (missingFields.length > 0) {
-      return res.status(400).json({ 
-        error: "Missing required fields",
-        missing: missingFields
-      });
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+    if (!otp) {
+      return res.status(400).json({ error: "OTP is required" });
+    }
+    if (!newPassword) {
+      return res.status(400).json({ error: "New password is required" });
     }
 
     const record = await prisma.oTP.findFirst({ 
@@ -744,15 +690,19 @@ export const resetPassword = async (req: Request, res: Response) => {
       } 
     });
 
-    if (!record)
+    if (!record) {
       return res.status(400).json({ error: "Invalid or expired OTP" });
+    }
 
-    if (record.expiresAt < new Date())
+    if (record.expiresAt < new Date()) {
+      await prisma.oTP.delete({ where: { id: record.id } });
       return res.status(400).json({ error: "OTP expired" });
+    }
 
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user)
+    if (!user) {
       return res.status(404).json({ error: "User not found" });
+    }
 
     const hashed = await bcrypt.hash(newPassword, 10);
 
@@ -765,12 +715,12 @@ export const resetPassword = async (req: Request, res: Response) => {
 
     return res.status(200).json({ msg: "Password reset successful." });
 
-  } catch (error) {
-    return res.status(500).json({ error: "Server error", details: error });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Server error", details: error.message });
   }
 };
 
-
+// ---------- FORGOT PASSWORD ----------
 /**
  * @swagger
  * /forgotPassword:
@@ -806,7 +756,7 @@ export const resetPassword = async (req: Request, res: Response) => {
  *                   type: string
  *                   example: "123456"
  *       400:
- *         description: Bad request - Email required
+ *         description: Email is required
  *         content:
  *           application/json:
  *             schema:
@@ -826,13 +776,10 @@ export const resetPassword = async (req: Request, res: Response) => {
  */
 export const forgotPassword = async (req: Request, res: Response) => {
   try {
-    const email = String(req.body.email || "").toLowerCase().trim();
+    const email = req.body.email ? String(req.body.email).toLowerCase().trim() : "";
 
     if (!email) {
-      return res.status(400).json({ 
-        error: "Missing required field",
-        missing: ["email"]
-      });
+      return res.status(400).json({ error: "Email is required" });
     }
 
     const user = await prisma.user.findUnique({ where: { email } });
@@ -850,15 +797,9 @@ export const forgotPassword = async (req: Request, res: Response) => {
       },
     });
 
-    // In production: send email
-    // await transporter.sendMail(...)
+    return res.status(200).json({ msg: "OTP sent to your email", debugOtp: code });
 
-    return res.status(200).json({ 
-      msg: "OTP sent to your email", 
-      debugOtp: code 
-    });
-
-  } catch (error) {
-    return res.status(500).json({ error: "Server error", details: error });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Server error", details: error.message });
   }
 };
