@@ -10,7 +10,7 @@ import userRouter from "./routes/user.routes";
 import chatRouter from "./routes/chat.routes";
 import profileRouter from "./routes/profile.routes";
 import path from "path";
-import { auth } from "./middleware/auth";
+import { auth, validateContact } from "./middleware/auth";
 import os from "os"; // ADD THIS!
 
 const app = express();
@@ -49,7 +49,6 @@ app.use(helmet({
 }));
 app.use(express.json());
 
-// ADD: Test endpoint for mobile (NO AUTH NEEDED!)
 app.get("/ping", (req, res) => {
   res.json({
     success: true,
@@ -75,10 +74,10 @@ app.get("/ping-auth", auth, (req: any, res) => {
   });
 });
 
-app.use("/chats", auth, chatRouter);
-app.use("/msgs", auth, msgsRouter);
-app.use("/profile", auth, profileRouter);
-app.use("/", userRouter);
+app.use("/chats", auth,validateContact, chatRouter);
+app.use("/msgs", auth,validateContact, msgsRouter);
+app.use("/profile", auth,validateContact, profileRouter);
+app.use("/",validateContact, userRouter);
 
 // Pass your IP to swagger
 setupSwagger(app, YOUR_IP, PORT);
