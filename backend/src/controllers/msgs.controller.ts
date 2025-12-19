@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import prisma from "../db";
 
+import { io } from "..";
+
 /**
  * @swagger
  * /msgs:
@@ -138,9 +140,11 @@ export const sendMsg = async (req: Request, res: Response) => {
       create: { chatId, userId: senderId, lastSeenMessageId: msg.id },
       update: { lastSeenMessageId: msg.id },
     });
-
+    
+  io.to(`chat:${chatId}`).emit("msg:new", msg);
     res.status(201).json({ msg });
   } catch (error) {
     res.status(500).json({ error: "Server error", details: error });
   }
 };
+

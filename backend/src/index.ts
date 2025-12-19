@@ -1,5 +1,4 @@
 import dotenv from "dotenv";
-dotenv.config();
 import express from "express";
 import http from "http";
 import cors from "cors";
@@ -12,7 +11,8 @@ import profileRouter from "./routes/profile.routes";
 import path from "path";
 import { auth, validateContact } from "./middleware/auth";
 import os from "os"; // ADD THIS!
-
+import { initSocket } from "./socket/socket";
+dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
@@ -35,7 +35,7 @@ function getLocalIP(): string {
 
 const YOUR_IP = getLocalIP(); // This will be 192.168.1.108
 const PORT = parseInt(process.env.PORT || '5000', 10);
-
+export const io = initSocket(server);
 // CORS
 app.use(cors({
   origin: '*', 
@@ -79,7 +79,6 @@ app.use("/msgs", auth,validateContact, msgsRouter);
 app.use("/profile", auth,validateContact, profileRouter);
 app.use("/",validateContact, userRouter);
 
-// Pass your IP to swagger
 setupSwagger(app, YOUR_IP, PORT);
 
 server.listen({
