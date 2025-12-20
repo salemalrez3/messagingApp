@@ -1,47 +1,49 @@
-import { Box, Paper, TextField, Button, Typography } from "@mui/material";
+import { Box } from "@mui/material";
 import { useState } from "react";
-interface AuthStates{
-  state:'login'|'register'|'forgotPassword'|'changePassword';
+import { RegisterPage } from "./registerPage";
+import { ForgotPasswordPage } from "./forgotPassword";
+import { ChangePasswordPage } from "./resetPassword";
+import { LoginPage } from "./loginPage";
+import { VerifyOtp } from "./verifyOtp";
+
+type AuthState = 'login' | 'register' | 'forgotPassword' | 'changePassword' | 'verReg' | 'verLogin';
+interface Payload{
+email:string;
+password:string;
+phone?:string;
+username?:string;
 }
 export const AuthPage = () => {
-  const [currentState,setCurrentState]=useState();
+  const [currentState, setCurrentState] = useState<AuthState>('login');
+  const [data,setData] = useState<Payload>();
+  const renderComponent = () => {
+    switch (currentState) {
+      case 'register':
+        return <RegisterPage setCurrentState={setCurrentState} setData={setData} />;
+      case 'forgotPassword':
+        return <ForgotPasswordPage setCurrentState={setCurrentState} />;
+      case 'changePassword':
+        return <ChangePasswordPage setCurrentState={setCurrentState} />;
+      case 'verReg':
+        return <VerifyOtp from={'verReg'} verData={data!} />;
+      case 'verLogin':
+        return <VerifyOtp from={'verLogin'} verData={data!} />;
+      case 'login':
+      default:
+        return <LoginPage setCurrentState={setCurrentState} setData={setData}/>;
+    }
+  };
+
   return (
     <Box sx={{
       display: 'flex',
       justifyContent: "center", 
       alignItems: "center",
       height: "100dvh",
-      bgcolor: '#f5f5f5'
-    }}>   
-      <Paper sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        padding: '40px',
-        width: '400px', 
-        gap: 2,
-        borderRadius: 2 
-      }}>
-        <Typography variant="h4" align="center" gutterBottom>
-          Login
-        </Typography>
-        <TextField 
-          label="Email" 
-          type="email"
-          fullWidth
-        />
-        <TextField 
-          label="Password" 
-          type="password"
-          fullWidth
-        />
-        <Button 
-          variant="contained" 
-          fullWidth
-          sx={{ mt: 2 }} 
-        >
-          Sign In
-        </Button>
-      </Paper>
+      bgcolor: '#f5f5f5',
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    }}>
+      {renderComponent()}
     </Box>
   );
 };

@@ -3,7 +3,7 @@
 export interface RegisterPayload {
   email: string;
   password: string;
-  phone: string;
+  phone?: string;
   username: string;
 }
 
@@ -16,7 +16,7 @@ export interface VerifyRegisterPayload {
   email: string;
   password: string;
   otp: string;
-  phone: string;
+  phone?: string;
   username: string;
 }
 
@@ -69,7 +69,7 @@ export interface UserResponse {
   id: string;
   email: string;
   username: string;
-  phone: string;
+  phone?: string;
 }
 
 export interface ErrorResponse {
