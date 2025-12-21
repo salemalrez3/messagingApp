@@ -8,15 +8,7 @@ export interface GetChatsResponse {
   chats: Chat[];
 }
 
-export interface CreateChatPayload {
-  name?: string;
-  participants: string[];
-  groupPic?: string;
-}
 
-export interface CreateChatResponse {
-  // Based on 201 response (no specific schema)
-}
 
 // Common Chat Types
 export interface Chat {
@@ -29,6 +21,12 @@ export interface Chat {
   unreadCount: number;
   updatedAt: string;
 }
+export interface CreateChatPayload {
+  name?: string;
+  participants: string[];
+  groupPic?: string;
+}
+
 
 export interface Participant {
   id: string;

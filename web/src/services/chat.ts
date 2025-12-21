@@ -5,7 +5,6 @@ import type {
   GetChatsParams,
   GetChatsResponse,
   CreateChatPayload,
-  CreateChatResponse,
 } from "../types/chatTypes";
 
 export async function getChats(params?: GetChatsParams): Promise<GetChatsResponse> {
@@ -13,7 +12,7 @@ export async function getChats(params?: GetChatsParams): Promise<GetChatsRespons
   return res.data;
 }
 
-export async function createChat(data: CreateChatPayload): Promise<CreateChatResponse> {
+export async function createChat(data: CreateChatPayload): Promise<''> {
   const res = await api.post('/chats', data);
   return res.data;
 }

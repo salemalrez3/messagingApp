@@ -1,7 +1,7 @@
 import { Paper, TextField, Typography, Button, Link, Box, Alert } from "@mui/material";
 import { useState } from "react";
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import { useForgotPassword } from "../hooks/api/auth";
+import { useForgotPassword } from "../../hooks/api/auth";
 interface Payload{
 email:string;
 }

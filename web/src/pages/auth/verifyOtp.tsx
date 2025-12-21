@@ -1,6 +1,7 @@
 import { Button, Paper, TextField, Typography } from "@mui/material";
 import { useState } from "react";
-import { useVerifyOtp, useVerifyRegister } from "../hooks/api/auth";
+import { useVerifyOtp, useVerifyRegister } from "../../hooks/api/auth";
+import { useNavigate } from "react-router-dom";
 
 interface Payload {
   email: string;
@@ -17,13 +18,14 @@ export const VerifyOtp = ({ from, verData }: VerifyOtpProps) => {
   const [otp, setOtp] = useState<string>("");
   const loginVer = useVerifyOtp();
   const regVer = useVerifyRegister();
+  const navigate = useNavigate();
  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if(from=="verLogin"){
-        loginVer.mutate({email:verData.email,otp})
+        loginVer.mutate({email:verData.email,otp},{onSuccess:()=>{navigate('chats')}})
     }
     else{
-        regVer.mutate({email:verData.email,password:verData.password||"",username:verData.username!,phone:verData.phone||"",otp})
+        regVer.mutate({email:verData.email,password:verData.password||"",username:verData.username!,phone:verData.phone||"",otp},{onSuccess:()=>{navigate('chats')}})
     }
     
   };

@@ -1,17 +1,20 @@
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
-import { AuthPage } from '../pages/authPage';
+import { createBrowserRouter } from "react-router-dom";
+import { AuthPage } from "../pages/auth/authPage";
+import { RequireAuth } from "../components/RequireAuth";
+import { ChatsPage } from "../pages/chatsPage/chatsPage";
 
 export const router = createBrowserRouter([
   {
-    path: '/',
-    element: < AuthPage/>,
+    path: "/",
+    element: <AuthPage />,
   },
   {
-    path: '/about',
-    element: < div/>,
+    path: "/chats",
+    element: (
+      <RequireAuth>
+        <ChatsPage/>
+      </RequireAuth>
+    ),
   },
-  {
-    path: '/users/:id',
-    element: < div/>,
-  },
+
 ]);

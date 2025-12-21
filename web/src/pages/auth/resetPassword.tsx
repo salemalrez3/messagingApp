@@ -5,7 +5,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import IconButton from '@mui/material/IconButton';
-import { useResetPassword } from "../hooks/api/auth";
+import { useResetPassword } from "../../hooks/api/auth";
 
 interface ChangePasswordProps {
   setCurrentState: (state: 'login' | 'register' | 'forgotPassword' | 'changePassword') => void;

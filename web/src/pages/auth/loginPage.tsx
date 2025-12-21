@@ -1,6 +1,6 @@
 import { Paper, TextField, Typography, Button, Link, Box } from "@mui/material";
 import { useState } from "react";
-import { useRequestOtp } from "../hooks/api/auth";
+import { useRequestOtp } from "../../hooks/api/auth";
 interface Payload{
 email:string;
 }

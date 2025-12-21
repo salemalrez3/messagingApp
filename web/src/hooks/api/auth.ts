@@ -38,7 +38,7 @@ export const useVerifyRegister = () => {
     onSuccess: (data) => {
       // Store token on successful registration
       if (data.token) {
-        localStorage.setItem('auth_token', data.token);
+        localStorage.setItem('token', data.token);
       }
       queryClient.invalidateQueries({ queryKey: ['user'] });
     },
@@ -59,7 +59,7 @@ export const useVerifyOtp = () => {
     onSuccess: (data) => {
       // Store token on successful verification
       if (data.token) {
-        localStorage.setItem('auth_token', data.token);
+        localStorage.setItem('token', data.token);
       }
       queryClient.invalidateQueries({ queryKey: ['user'] });
     },

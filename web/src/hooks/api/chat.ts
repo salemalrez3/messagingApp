@@ -4,7 +4,6 @@ import type {
   GetChatsParams,
   GetChatsResponse,
   CreateChatPayload,
-  CreateChatResponse,
 } from "../../types/chatTypes";
 
 export const useGetChats = (params?: GetChatsParams) => {
@@ -17,7 +16,7 @@ export const useGetChats = (params?: GetChatsParams) => {
 export const useCreateChat = () => {
   const queryClient = useQueryClient();
   
-  return useMutation<CreateChatResponse, Error, CreateChatPayload>({
+  return useMutation<'', Error, CreateChatPayload>({
     mutationFn: createChat,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['chats'] });

@@ -1,6 +1,6 @@
 import { Paper, TextField, Typography, Button, Link, Box } from "@mui/material";
 import { useState } from "react";
-import { useRegister } from "../hooks/api/auth";
+import { useRegister } from "../../hooks/api/auth";
 interface Payload{
 email:string;
 password:string;

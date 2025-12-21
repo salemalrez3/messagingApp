@@ -1,9 +1,10 @@
 import { Box } from "@mui/material";
 import { useState } from "react";
+
+import { LoginPage } from "./loginPage";
 import { RegisterPage } from "./registerPage";
 import { ForgotPasswordPage } from "./forgotPassword";
 import { ChangePasswordPage } from "./resetPassword";
-import { LoginPage } from "./loginPage";
 import { VerifyOtp } from "./verifyOtp";
 
 type AuthState = 'login' | 'register' | 'forgotPassword' | 'changePassword' | 'verReg' | 'verLogin';
