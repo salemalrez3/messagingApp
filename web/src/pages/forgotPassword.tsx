@@ -1,16 +1,19 @@
 import { Paper, TextField, Typography, Button, Link, Box, Alert } from "@mui/material";
 import { useState } from "react";
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-
+import { useForgotPassword } from "../hooks/api/auth";
+interface Payload{
+email:string;
+}
 interface ForgotPasswordProps {
-  setCurrentState: (state: 'login' | 'register' | 'forgotPassword' | 'changePassword') => void;
+  setCurrentState: (state: 'login' | 'register' | 'forgotPassword' | 'changePassword'| 'verReg' | 'verLogin') => void;
+   setData: (payload:Payload) => void;
 }
 
-export const ForgotPasswordPage = ({ setCurrentState }: ForgotPasswordProps) => {
+export const ForgotPasswordPage = ({ setCurrentState,setData}: ForgotPasswordProps) => {
   const [email, setEmail] = useState<string>('');
-  const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
-
+  const forgot = useForgotPassword();
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -19,11 +22,8 @@ export const ForgotPasswordPage = ({ setCurrentState }: ForgotPasswordProps) => 
       setError('Please enter a valid email address');
       return;
     }
+    forgot.mutate({email},{onSuccess:()=>{console.log('Sending reset link to:', email); setCurrentState('changePassword'); setData({email})}})
     
-    // Simulate API call
-    console.log('Sending reset link to:', email);
-    setIsSubmitted(true);
-    setError('');
   };
 
   const handleBackToLogin = () => {
@@ -66,13 +66,6 @@ export const ForgotPasswordPage = ({ setCurrentState }: ForgotPasswordProps) => 
           {error}
         </Alert>
       )}
-      
-      {isSubmitted ? (
-        <Alert severity="success">
-          If an account exists with {email}, you will receive a password reset link shortly.
-          Please check your inbox and spam folder.
-        </Alert>
-      ) : (
         <>
           <TextField 
             label="Email Address" 
@@ -96,7 +89,6 @@ export const ForgotPasswordPage = ({ setCurrentState }: ForgotPasswordProps) => 
             Send Reset Link
           </Button>
         </>
-      )}
       
       <Box sx={{ textAlign: 'center', mt: 2 }}>
         <Typography variant="body2" color="text.secondary">

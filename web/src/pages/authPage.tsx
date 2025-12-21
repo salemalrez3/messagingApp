@@ -9,7 +9,7 @@ import { VerifyOtp } from "./verifyOtp";
 type AuthState = 'login' | 'register' | 'forgotPassword' | 'changePassword' | 'verReg' | 'verLogin';
 interface Payload{
 email:string;
-password:string;
+password?:string;
 phone?:string;
 username?:string;
 }
@@ -21,9 +21,9 @@ export const AuthPage = () => {
       case 'register':
         return <RegisterPage setCurrentState={setCurrentState} setData={setData} />;
       case 'forgotPassword':
-        return <ForgotPasswordPage setCurrentState={setCurrentState} />;
+        return <ForgotPasswordPage setCurrentState={setCurrentState} setData={setData} />;
       case 'changePassword':
-        return <ChangePasswordPage setCurrentState={setCurrentState} />;
+        return <ChangePasswordPage setCurrentState={setCurrentState} email={data?.email!} />;
       case 'verReg':
         return <VerifyOtp from={'verReg'} verData={data!} />;
       case 'verLogin':

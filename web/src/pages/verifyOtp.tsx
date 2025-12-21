@@ -4,7 +4,7 @@ import { useVerifyOtp, useVerifyRegister } from "../hooks/api/auth";
 
 interface Payload {
   email: string;
-  password: string;
+  password?: string;
   phone?: string;
   username?: string;
 }
@@ -23,9 +23,8 @@ export const VerifyOtp = ({ from, verData }: VerifyOtpProps) => {
         loginVer.mutate({email:verData.email,otp})
     }
     else{
-        regVer.mutate({email:verData.email,password:verData.password,username:verData.username!,phone:verData.phone||"",otp})
+        regVer.mutate({email:verData.email,password:verData.password||"",username:verData.username!,phone:verData.phone||"",otp})
     }
-    //console.log('Requesting OTP for:', { email, password, rememberMe });
     
   };
   return (

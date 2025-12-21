@@ -5,19 +5,22 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import IconButton from '@mui/material/IconButton';
+import { useResetPassword } from "../hooks/api/auth";
 
 interface ChangePasswordProps {
   setCurrentState: (state: 'login' | 'register' | 'forgotPassword' | 'changePassword') => void;
+  email:string;
 }
 
-export const ChangePasswordPage = ({ setCurrentState }: ChangePasswordProps) => {
+export const ChangePasswordPage = ({ setCurrentState,email }: ChangePasswordProps) => {
   const [newPassword, setNewPassword] = useState<string>('');
   const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [showNewPassword, setShowNewPassword] = useState<boolean>(false);
+  const [otp,setOtp] = useState("");
   const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<boolean>(false);
-
+  const reset = useResetPassword();
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -36,18 +39,15 @@ export const ChangePasswordPage = ({ setCurrentState }: ChangePasswordProps) => 
       setError('Passwords do not match');
       return;
     }
-    
-    // Simulate API call
-    console.log('Changing password to:', newPassword);
-    setSuccess(true);
-    setError('');
+    reset.mutate({email,newPassword,otp})
+  
   };
 
   const handleBackToLogin = () => {
     setCurrentState('login');
   };
 
-  if (success) {
+  if (reset.isSuccess) {
     return (
       <Paper
         sx={{
@@ -162,6 +162,14 @@ export const ChangePasswordPage = ({ setCurrentState }: ChangePasswordProps) => 
         }}
       />
       
+      <TextField 
+        label="Enter Code" 
+        value={otp} 
+        onChange={(e) => setOtp(e.target.value)}
+        fullWidth
+        required
+        variant="outlined"
+      />
       <Box sx={{ bgcolor: 'grey.50', p: 2, borderRadius: 1 }}>
         <Typography variant="body2" fontWeight="bold" gutterBottom>
           Password requirements:

@@ -3,11 +3,10 @@ import { useState } from "react";
 import { useRequestOtp } from "../hooks/api/auth";
 interface Payload{
 email:string;
-password:string
 }
 interface LoginProps {
   setCurrentState: (state: 'login' | 'register' | 'forgotPassword' | 'changePassword' | 'verReg' | 'verLogin') => void;
-   setData: (payload:Payload) => void;
+  setData: (payload:Payload) => void;
 }
 
 export const LoginPage = ({ setCurrentState,setData }: LoginProps) => {
@@ -19,7 +18,7 @@ export const LoginPage = ({ setCurrentState,setData }: LoginProps) => {
     e.preventDefault();
     
     console.log('Requesting OTP for:', { email, password, rememberMe });
-    login.mutate({email,password},{onSuccess:()=>{setData({email,password})
+    login.mutate({email,password},{onSuccess:()=>{setData({email})
     setCurrentState('verLogin');}});
     
   };
