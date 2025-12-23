@@ -706,28 +706,28 @@ export const resetPassword = async (req: Request, res: Response) => {
 
     const hashed = await bcrypt.hash(newPassword, 10);
 
-    await prisma.user.update({
+   const newUser = await prisma.user.update({
       where: { email },
       data: { password: hashed },
     });
-
+     const token = createToken(user.id, email);
     await prisma.oTP.delete({ where: { id: record.id } });
 
-    return res.status(200).json({ msg: "Password reset successful." });
+    return res.status(200).json({ msg: "Password reset successful." ,newUser,token});
 
   } catch (error: any) {
     return res.status(500).json({ error: "Server error", details: error.message });
   }
 };
 
-// ---------- FORGOT PASSWORD ----------
+// ---------- RESET PASSWORD ----------
 /**
  * @swagger
- * /forgotPassword:
+ * /resetPassword:
  *   post:
- *     summary: Send OTP to user's email for password reset
+ *     summary: Reset password using OTP
  *     tags: [Authentication]
- *     description: Sends a 6-digit OTP to the user's email so they can reset their password.
+ *     description: Validates OTP and allows the user to set a new password. Returns authentication token upon success.
  *     requestBody:
  *       required: true
  *       content:
@@ -736,14 +736,27 @@ export const resetPassword = async (req: Request, res: Response) => {
  *             type: object
  *             required:
  *               - email
+ *               - otp
+ *               - newPassword
  *             properties:
  *               email:
  *                 type: string
  *                 format: email
  *                 example: user@example.com
+ *               otp:
+ *                 type: string
+ *                 minLength: 6
+ *                 maxLength: 6
+ *                 pattern: '^[0-9]{6}$'
+ *                 example: "123456"
+ *               newPassword:
+ *                 type: string
+ *                 format: password
+ *                 minLength: 6
+ *                 example: "newStrongPassword123"
  *     responses:
  *       200:
- *         description: OTP sent
+ *         description: Password reset successful. Returns user data and authentication token.
  *         content:
  *           application/json:
  *             schema:
@@ -751,28 +764,52 @@ export const resetPassword = async (req: Request, res: Response) => {
  *               properties:
  *                 msg:
  *                   type: string
- *                   example: "OTP sent to your email"
- *                 debugOtp:
+ *                   example: "Password reset successful."
+ *                 newUser:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     # Add other user properties as needed
+ *                 token:
  *                   type: string
- *                   example: "123456"
+ *                   description: JWT authentication token
+ *                   example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
  *       400:
- *         description: Email is required
+ *         description: Invalid request - missing fields, invalid OTP, or expired OTP
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Error'
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: "Invalid or expired OTP"
  *       404:
  *         description: User not found
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Error'
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: "User not found"
  *       500:
- *         description: Server error
+ *         description: Internal server error
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Error'
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: "Server error"
+ *                 details:
+ *                   type: string
+ *                   example: "Error details here"
  */
 export const forgotPassword = async (req: Request, res: Response) => {
   try {
