@@ -68,6 +68,12 @@ export const useVerifyOtp = () => {
 
 export const useResetPassword = () => {
   return useMutation<ResetPasswordResponse, Error, ResetPasswordPayload>({
+     onSuccess: (data) => {
+      // Store token on successful verification
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+      }
+    },
     mutationFn: resetPassword
   });
 };

@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import prisma from "../db";
+import { io } from "..";
 
 type ReqWithUser = Request & { user?: { userId: string } };
 
@@ -225,6 +226,111 @@ export const addChat = async (req: ReqWithUser, res: Response) => {
     });
 
     return res.status(201).json({ chat });
+  } catch (error) {
+    return res.status(500).json({ error: "Server error", details: error });
+  }
+};
+
+/**
+ * @swagger
+ * /chats/{chatId}/seen:
+ *   post:
+ *     summary: Mark messages in a chat as seen
+ *     description: Marks all messages in the specified chat as seen by updating the user's lastSeenMessageId.
+ *     tags:
+ *       - Chats
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: chatId
+ *         required: true
+ *         description: Chat ID
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Messages marked as seen
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 chatId:
+ *                   type: string
+ *                 lastSeenMessageId:
+ *                   type: string
+ *                   nullable: true
+ *       401:
+ *         description: Unauthenticated
+ *       403:
+ *         description: User is not part of this chat
+ *       404:
+ *         description: Chat or messages not found
+ *       500:
+ *         description: Server error
+ */
+export const markChatSeen = async (req: Request, res: Response) => {
+  try {
+    const chatId = String(req.params.chatId);
+    const userId = (req as any).user.id;
+
+    if (!chatId) {
+      return res.status(400).json({ error: "chatId is required" });
+    }
+
+    // Ensure chat exists and user is a participant
+    const chat = await prisma.chat.findUnique({
+      where: { id: chatId },
+      select: { participants: { select: { id: true } } },
+    });
+
+    if (!chat) {
+      return res.status(404).json({ error: "Chat not found" });
+    }
+
+    const isParticipant = chat.participants.some(p => p.id === userId);
+    if (!isParticipant) {
+      return res.status(403).json({ error: "Not part of this chat" });
+    }
+
+    // Get latest message
+    const lastMessage = await prisma.message.findFirst({
+      where: { chatId },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    });
+
+    if (!lastMessage) {
+      return res.status(404).json({ error: "No messages in this chat" });
+    }
+
+    // Update read status
+    await prisma.chatReadStatus.upsert({
+      where: {
+        chatId_userId: { chatId, userId },
+      },
+      create: {
+        chatId,
+        userId,
+        lastSeenMessageId: lastMessage.id,
+      },
+      update: {
+        lastSeenMessageId: lastMessage.id,
+      },
+    });
+
+    // Notify other users in real-time
+    io.to(`chat:${chatId}`).emit("msg:seen", {
+      chatId,
+      userId,
+      lastSeenMessageId: lastMessage.id,
+    });
+
+    return res.status(200).json({
+      chatId,
+      lastSeenMessageId: lastMessage.id,
+    });
   } catch (error) {
     return res.status(500).json({ error: "Server error", details: error });
   }

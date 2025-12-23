@@ -15,55 +15,87 @@ enum MsgStatus {
 }
 
 model User {
-  id        String       @id @default(uuid())
-  username  String?
-  phone     String?    
-  email     String    @unique
-  password  String
-  profilePic String?
-  about     String?
-  isOnline  Boolean   @default(false)
-  lastSeen  DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  chats     Chat[]            @relation("ChatParticipants")
-  messages  Message[]        
-  readStatuses ChatReadStatus[]
+  id                String            @id @default(uuid())
+  username          String?
+  phone             String?
+  email             String            @unique
+  password          String
+  profilePic        String?
+  about             String?
+  isOnline          Boolean           @default(false)
+  lastSeen          DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  chats             Chat[]            @relation("ChatParticipants")
+  messages          Message[]
+  readStatuses      ChatReadStatus[]
+  // message deliveries where this user is the target
+  messageDeliveries MessageDelivery[]
 }
 
 model Chat {
-  id           String       @id @default(uuid())
-  name         String?
-  isGroup      Boolean   @default(false)
-  groupPic     String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id        String   @id @default(uuid())
+  name      String?
+  isGroup   Boolean  @default(false)
+  groupPic  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  participants User[]     @relation("ChatParticipants")
+  participants User[]           @relation("ChatParticipants")
   messages     Message[]
-  readStatuses ChatReadStatus[] 
+  readStatuses ChatReadStatus[]
 }
 
 model Message {
-  id         String       @id @default(uuid())
-  content    String
-  createdAt  DateTime  @default(now())
-  chatId     String
-  senderId   String
-  chat       Chat      @relation(fields: [chatId], references: [id])
-  sender     User      @relation(fields: [senderId], references: [id])
-  status     MsgStatus @default(pending)
+  id        String    @id @default(uuid())
+  content   String
+  createdAt DateTime  @default(now())
+  chatId    String
+  senderId  String
+  chat      Chat      @relation(fields: [chatId], references: [id])
+  sender    User      @relation(fields: [senderId], references: [id])
+  status    MsgStatus @default(pending)
+
+  // editing / deletion
+  editedAt  DateTime?
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+
+  // reply / forward support
+  replyToMessageId String?
+  replyToMessage   Message?  @relation("MessageReplies", fields: [replyToMessageId], references: [id])
+  replies          Message[] @relation("MessageReplies")
+
+  // relations
+  deliveries MessageDelivery[]
+}
+
+model MessageDelivery {
+  id          String   @id @default(uuid())
+  message     Message  @relation(fields: [messageId], references: [id])
+  messageId   String
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String
+  deliveredAt DateTime @default(now())
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@index([userId])
 }
 
 model ChatReadStatus {
-  id                String       @id @default(uuid())
+  id                String   @id @default(uuid())
   chatId            String
   userId            String
-  lastSeenMessageId String?     
+  lastSeenMessageId String?
   updatedAt         DateTime @updatedAt
+
   chat Chat @relation(fields: [chatId], references: [id])
   user User @relation(fields: [userId], references: [id])
-  @@unique([chatId, userId]) 
+
+  @@unique([chatId, userId])
+  @@index([chatId])
+  @@index([userId])
 }
 
 model OTP {

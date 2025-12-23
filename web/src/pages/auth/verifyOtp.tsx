@@ -22,10 +22,10 @@ export const VerifyOtp = ({ from, verData }: VerifyOtpProps) => {
  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if(from=="verLogin"){
-        loginVer.mutate({email:verData.email,otp},{onSuccess:()=>{navigate('chats')}})
+        loginVer.mutate({email:verData.email,otp},{onSuccess:()=>{navigate('/chats')}})
     }
     else{
-        regVer.mutate({email:verData.email,password:verData.password||"",username:verData.username!,phone:verData.phone||"",otp},{onSuccess:()=>{navigate('chats')}})
+        regVer.mutate({email:verData.email,password:verData.password||"",username:verData.username!,phone:verData.phone||"",otp},{onSuccess:()=>{navigate('/chats')}})
     }
     
   };

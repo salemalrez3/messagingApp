@@ -6,6 +6,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import IconButton from '@mui/material/IconButton';
 import { useResetPassword } from "../../hooks/api/auth";
+import { useNavigate } from "react-router-dom";
 
 interface ChangePasswordProps {
   setCurrentState: (state: 'login' | 'register' | 'forgotPassword' | 'changePassword') => void;
@@ -21,9 +22,11 @@ export const ChangePasswordPage = ({ setCurrentState,email }: ChangePasswordProp
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<boolean>(false);
   const reset = useResetPassword();
+  
+    const navigate = useNavigate();
   const handleSubmit = (e: React.FormEvent) => {
+    debugger
     e.preventDefault();
-    
     // Validation
     if (!newPassword || !confirmPassword) {
       setError('Please fill in all fields');
@@ -39,7 +42,7 @@ export const ChangePasswordPage = ({ setCurrentState,email }: ChangePasswordProp
       setError('Passwords do not match');
       return;
     }
-    reset.mutate({email,newPassword,otp})
+    reset.mutate({email,newPassword,otp},{onSuccess:()=>{navigate('/chats')}})
   
   };
 

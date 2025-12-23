@@ -53,7 +53,9 @@ export interface ResetPasswordPayload {
 }
 
 export interface ResetPasswordResponse {
-  // Based on 200 response (no specific schema)
+  msg:string;
+  token:string;
+  newUser: UserResponse;
 }
 
 export interface ForgotPasswordPayload {

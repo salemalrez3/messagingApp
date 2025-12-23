@@ -11,7 +11,7 @@ export function ChatsPage() {
   }
 
   if (error) {
-    return <div>Failed to load chats</div>;
+    return <div>Failed to load chats{}</div>;
   }
 
   return (
