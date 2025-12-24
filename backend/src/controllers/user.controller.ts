@@ -548,12 +548,25 @@ export const verifyOtp = async (req: Request, res: Response) => {
   try {
     const email = req.body.email ? String(req.body.email).toLowerCase().trim() : "";
     const otp = req.body.otp ? String(req.body.otp) : "";
-
+    const password = req.body.password ? String(req.body.password) : "";
     if (!email) {
       return res.status(400).json({ error: "Email is required" });
     }
     if (!otp) {
       return res.status(400).json({ error: "OTP is required" });
+    }
+   const user = await prisma.user.findUnique({
+      where: { email,password},
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        phone: true
+      }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
     }
 
     const record = await prisma.oTP.findFirst({
@@ -577,20 +590,6 @@ export const verifyOtp = async (req: Request, res: Response) => {
 
     await prisma.oTP.delete({ where: { id: record.id } });
     
-    const user = await prisma.user.findUnique({
-      where: { email },
-      select: {
-        id: true,
-        email: true,
-        username: true,
-        phone: true
-      }
-    });
-    
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
     const token = createToken(user.id, user.email);
 
     return res.status(200).json({
