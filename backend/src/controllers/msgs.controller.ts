@@ -1,18 +1,98 @@
+// src/controllers/msgs.controller.ts
 import { Request, Response } from "express";
 import prisma from "../db";
-
 import { io } from "..";
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     UserShort:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *         username:
+ *           type: string
+ *         profilePic:
+ *           type: string
+ *
+ *     MessageShort:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *         content:
+ *           type: string
+ *         senderId:
+ *           type: string
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *         editedAt:
+ *           type: string
+ *           format: date-time
+ *           nullable: true
+ *         isDeleted:
+ *           type: boolean
+ *
+ *     Message:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *         content:
+ *           type: string
+ *         sender:
+ *           $ref: '#/components/schemas/UserShort'
+ *         senderId:
+ *           type: string
+ *         chatId:
+ *           type: string
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *         editedAt:
+ *           type: string
+ *           format: date-time
+ *           nullable: true
+ *         isDeleted:
+ *           type: boolean
+ *         replyToMessage:
+ *           oneOf:
+ *             - $ref: '#/components/schemas/MessageShort'
+ *             - type: 'null'
+ *
+ *     GetMessagesResponse:
+ *       type: object
+ *       properties:
+ *         messages:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/Message'
+ *         nextCursor:
+ *           type: string
+ *           nullable: true
+ *
+ *     Error:
+ *       type: object
+ *       properties:
+ *         error:
+ *           type: string
+ *         details:
+ *           type: string
+ */
 
 /**
  * @swagger
  * /msgs:
  *   get:
  *     summary: Get messages of a chat (paginated)
- *     description: Returns the latest messages in a chat using cursor-based pagination.
+ *     description: Returns the latest messages in a chat using cursor-based pagination. Each message includes `sender` and optional `replyToMessage`.
  *     tags:
  *       - Messages
  *     security:
- *       - bearerAuth: []
+ *       - BearerAuth: []
  *     parameters:
  *       - in: query
  *         name: chatId
@@ -27,12 +107,16 @@ import { io } from "..";
  *           type: integer
  *       - in: query
  *         name: cursor
- *         description: Message ID to continue pagination from
+ *         description: Message ID to continue pagination from (cursor-based)
  *         schema:
  *           type: string
  *     responses:
  *       200:
  *         description: Messages retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/GetMessagesResponse'
  *       400:
  *         description: Missing chatId
  *       500:
@@ -40,7 +124,7 @@ import { io } from "..";
  */
 export const getMsgs = async (req: Request, res: Response) => {
   try {
-    const chatId = String(req.query.chatId);
+    const chatId = String(req.query.chatId || "");
     const take = Number(req.query.limit) || 20;
     const cursor = req.query.cursor ? String(req.query.cursor) : undefined;
 
@@ -55,8 +139,20 @@ export const getMsgs = async (req: Request, res: Response) => {
       cursor: cursor ? { id: cursor } : undefined,
       skip: cursor ? 1 : 0,
       include: {
-    replyToMessage: true, 
-  },
+        // include the user who sent the message
+        sender: { select: { id: true, username: true, profilePic: true } },
+        // include a short view of the replied-to message (if any)
+        replyToMessage: {
+          select: {
+            id: true,
+            content: true,
+            senderId: true,
+            createdAt: true,
+            editedAt: true,
+            isDeleted: true,
+          },
+        },
+      },
     });
 
     const hasNext = messages.length > take;
@@ -64,12 +160,12 @@ export const getMsgs = async (req: Request, res: Response) => {
 
     const nextCursor = hasNext ? messages[messages.length - 1].id : null;
 
-    res.json({
+    return res.status(200).json({
       messages,
       nextCursor,
     });
-  } catch (error) {
-    res.status(500).json({ error: "Server error", details: error });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Server error", details: error.message });
   }
 };
 
@@ -82,7 +178,7 @@ export const getMsgs = async (req: Request, res: Response) => {
  *     tags:
  *       - Messages
  *     security:
- *       - bearerAuth: []
+ *       - BearerAuth: []
  *     parameters:
  *       - in: query
  *         name: chatId
@@ -103,6 +199,13 @@ export const getMsgs = async (req: Request, res: Response) => {
  *     responses:
  *       201:
  *         description: Message sent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   $ref: '#/components/schemas/Message'
  *       400:
  *         description: Missing chatId or text
  *       403:
@@ -114,9 +217,9 @@ export const getMsgs = async (req: Request, res: Response) => {
  */
 export const sendMsg = async (req: Request, res: Response) => {
   try {
-    const chatId = String(req.query.chatId);
-    const msgTxt = String(req.body.text || "").trimEnd();
-    const senderId =(req as any).user.id;
+    const chatId = String(req.query.chatId || "");
+    const msgTxt = String(req.body.text || "").trim();
+    const senderId = (req as any).user?.userId || (req as any).user?.id;
 
     if (!chatId || !msgTxt) {
       return res.status(400).json({ error: "chatId and text are required" });
@@ -134,20 +237,27 @@ export const sendMsg = async (req: Request, res: Response) => {
       return res.status(403).json({ error: "Not part of this chat" });
     }
 
-    const msg = await prisma.message.create({
+    const created = await prisma.message.create({
       data: { chatId, content: msgTxt, senderId },
+      include: {
+        sender: { select: { id: true, username: true, profilePic: true } },
+        replyToMessage: { select: { id: true, content: true, senderId: true, createdAt: true, editedAt: true, isDeleted: true } },
+      },
     });
 
+    // update read status for sender (so their last seen moves forward)
     await prisma.chatReadStatus.upsert({
       where: { chatId_userId: { chatId, userId: senderId } },
-      create: { chatId, userId: senderId, lastSeenMessageId: msg.id },
-      update: { lastSeenMessageId: msg.id },
+      create: { chatId, userId: senderId, lastSeenMessageId: created.id },
+      update: { lastSeenMessageId: created.id },
     });
-    
-  io.to(`chat:${chatId}`).emit("msg:new", msg);
-    res.status(201).json({ msg });
-  } catch (error) {
-    res.status(500).json({ error: "Server error", details: error });
+
+    // notify via socket AFTER DB success
+    if (io) io.to(`chat:${chatId}`).emit("message:new", created);
+
+    return res.status(201).json({ message: created });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Server error", details: error.message });
   }
 };
 
@@ -159,7 +269,7 @@ export const sendMsg = async (req: Request, res: Response) => {
  *     tags:
  *       - Messages
  *     security:
- *       - bearerAuth: []
+ *       - BearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -175,7 +285,7 @@ export const sendMsg = async (req: Request, res: Response) => {
  *             schema:
  *               type: object
  *               properties:
- *                 msg:
+ *                 message:
  *                   type: string
  *                   example: "Message delivered"
  *       404:
@@ -185,11 +295,11 @@ export const sendMsg = async (req: Request, res: Response) => {
  */
 export const markMsgDelivered = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
-    const msgId = req.params.id;
+    const userId = (req as any).user?.userId || (req as any).user?.id;
+    const msgId = String(req.params.id || "");
 
-    const msg = await prisma.message.findUnique({ where: { id: msgId } });
-    if (!msg) return res.status(404).json({ error: "Message not found" });
+    const message = await prisma.message.findUnique({ where: { id: msgId } });
+    if (!message) return res.status(404).json({ error: "Message not found" });
 
     await prisma.messageDelivery.upsert({
       where: { messageId_userId: { messageId: msgId, userId } },
@@ -197,14 +307,11 @@ export const markMsgDelivered = async (req: Request, res: Response) => {
       update: { deliveredAt: new Date() },
     });
 
-    io.to(`chat:${msg.chatId}`).emit("msg:delivered", {
-      messageId: msgId,
-      userId,
-    });
+    if (io) io.to(`chat:${message.chatId}`).emit("message:delivered", { messageId: msgId, userId });
 
-    res.status(200).json({ msg: "Message delivered" });
-  } catch (error) {
-    res.status(500).json({ error: "Server error", details: error });
+    return res.status(200).json({ message: "Message delivered" });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Server error", details: error.message });
   }
 };
 
@@ -216,7 +323,7 @@ export const markMsgDelivered = async (req: Request, res: Response) => {
  *     tags:
  *       - Messages
  *     security:
- *       - bearerAuth: []
+ *       - BearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -242,7 +349,7 @@ export const markMsgDelivered = async (req: Request, res: Response) => {
  *             schema:
  *               type: object
  *               properties:
- *                 msg:
+ *                 message:
  *                   $ref: '#/components/schemas/Message'
  *       403:
  *         description: Not sender
@@ -253,28 +360,31 @@ export const markMsgDelivered = async (req: Request, res: Response) => {
  */
 export const editMsg = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
-    const msgId = req.params.id;
+    const userId = (req as any).user?.userId || (req as any).user?.id;
+    const msgId = String(req.params.id || "");
     const newText = String(req.body.text || "").trim();
 
     if (!newText) return res.status(400).json({ error: "Text is required" });
 
-    const msg = await prisma.message.findUnique({ where: { id: msgId } });
-    if (!msg) return res.status(404).json({ error: "Message not found" });
+    const message = await prisma.message.findUnique({ where: { id: msgId } });
+    if (!message) return res.status(404).json({ error: "Message not found" });
 
-    if (msg.senderId !== userId) return res.status(403).json({ error: "Not sender" });
+    if (message.senderId !== userId) return res.status(403).json({ error: "Not sender" });
 
     const updatedMsg = await prisma.message.update({
       where: { id: msgId },
       data: { content: newText, editedAt: new Date() },
+      include: {
+        sender: { select: { id: true, username: true, profilePic: true } },
+        replyToMessage: { select: { id: true, content: true, senderId: true, createdAt: true, editedAt: true, isDeleted: true } },
+      },
     });
 
-    // Broadcast via socket
-    io.to(`chat:${msg.chatId}`).emit("msg:edited", updatedMsg);
+    if (io) io.to(`chat:${message.chatId}`).emit("message:edited", updatedMsg);
 
-    res.status(200).json({ msg: updatedMsg });
-  } catch (error) {
-    res.status(500).json({ error: "Server error", details: error });
+    return res.status(200).json({ message: updatedMsg });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Server error", details: error.message });
   }
 };
 
@@ -286,7 +396,7 @@ export const editMsg = async (req: Request, res: Response) => {
  *     description: Marks a message as deleted. Only the sender can delete it.
  *     tags: [Messages]
  *     security:
- *       - bearerAuth: []
+ *       - BearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -302,47 +412,39 @@ export const editMsg = async (req: Request, res: Response) => {
  *             schema:
  *               type: object
  *               properties:
- *                 msg:
+ *                 message:
  *                   type: string
  *                   example: "Message deleted"
  *       403:
  *         description: Not the sender
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *       404:
  *         description: Message not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *       500:
  *         description: Server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
 export const deleteMsg = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
-    const msgId = String(req.params.id);
+    const userId = (req as any).user?.userId || (req as any).user?.id;
+    const msgId = String(req.params.id || "");
 
-    const msg = await prisma.message.findUnique({ where: { id: msgId } });
-    if (!msg) return res.status(404).json({ error: "Message not found" });
-    if (msg.senderId !== userId) return res.status(403).json({ error: "Not the sender" });
+    const message = await prisma.message.findUnique({ where: { id: msgId } });
+    if (!message) return res.status(404).json({ error: "Message not found" });
+    if (message.senderId !== userId) return res.status(403).json({ error: "Not the sender" });
 
     const deletedMsg = await prisma.message.update({
       where: { id: msgId },
       data: { isDeleted: true, deletedAt: new Date(), content: "Message deleted" },
+      include: {
+        sender: { select: { id: true, username: true, profilePic: true } },
+        replyToMessage: { select: { id: true, content: true, senderId: true, createdAt: true, editedAt: true, isDeleted: true } },
+      },
     });
 
-    if (io) io.to(`chat:${msg.chatId}`).emit("msg:deleted", { id: msgId });
+    if (io) io.to(`chat:${message.chatId}`).emit("message:deleted", { id: msgId });
 
-    return res.status(200).json({ msg: "Message deleted" });
-  } catch (error) {
-    return res.status(500).json({ error: "Server error", details: error });
+    return res.status(200).json({ message: "Message deleted" });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Server error", details: error.message });
   }
 };
 
@@ -354,7 +456,7 @@ export const deleteMsg = async (req: Request, res: Response) => {
  *     description: Sends a message that is a reply to an existing message.
  *     tags: [Messages]
  *     security:
- *       - bearerAuth: []
+ *       - BearerAuth: []
  *     parameters:
  *       - in: query
  *         name: chatId
@@ -387,38 +489,23 @@ export const deleteMsg = async (req: Request, res: Response) => {
  *             schema:
  *               type: object
  *               properties:
- *                 msg:
+ *                 message:
  *                   $ref: '#/components/schemas/Message'
  *       400:
  *         description: Missing parameters
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *       404:
  *         description: Chat or original message not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *       403:
  *         description: User not part of chat
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *       500:
  *         description: Server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
 export const replyMsg = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
-    const chatId = String(req.query.chatId);
-    const { text, replyToMessageId } = req.body;
+    const userId = (req as any).user?.userId || (req as any).user?.id;
+    const chatId = String(req.query.chatId || "");
+    const text = String(req.body.text || "").trim();
+    const replyToMessageId = String(req.body.replyToMessageId || "");
 
     if (!chatId || !text || !replyToMessageId) {
       return res.status(400).json({ error: "chatId, text, and replyToMessageId are required" });
@@ -437,15 +524,19 @@ export const replyMsg = async (req: Request, res: Response) => {
     const originalMsg = await prisma.message.findUnique({ where: { id: replyToMessageId } });
     if (!originalMsg) return res.status(404).json({ error: "Original message not found" });
 
-    const msg = await prisma.message.create({
-      data: { chatId, senderId: userId, content: text, replyToMessageId, },
+    const created = await prisma.message.create({
+      data: { chatId, senderId: userId, content: text, replyToMessageId },
+      include: {
+        sender: { select: { id: true, username: true, profilePic: true } },
+        replyToMessage: { select: { id: true, content: true, senderId: true, createdAt: true, editedAt: true, isDeleted: true } },
+      },
     });
 
-    if (io) io.to(`chat:${chatId}`).emit("msg:new", msg);
+    // notify via socket
+    if (io) io.to(`chat:${chatId}`).emit("message:new", created);
 
-    return res.status(201).json({ msg});
-  } catch (error) {
-    return res.status(500).json({ error: "Server error", details: error });
+    return res.status(201).json({ message: created });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Server error", details: error.message });
   }
 };
-

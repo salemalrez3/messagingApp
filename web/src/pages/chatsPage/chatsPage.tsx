@@ -1,5 +1,6 @@
 import { useAuth } from "../../context/authContext";
 import { useGetChats } from "../../hooks/api/chat";
+import { ChatListItem } from "./chatListItem";
 
 
 export function ChatsPage() {
@@ -35,10 +36,8 @@ export function ChatsPage() {
               {chat.isGroup ? chat.name : chat.participants[0]?.username}
             </div>
 
-            {chat.lastMessage && (
-              <div style={{ fontSize: 14, color: "#555" }}>
-                {chat.lastMessage.content}
-              </div>
+            {chat.lastMessage && ( 
+              <ChatListItem chat={chat} onClick={()=>{}} selected={false} ></ChatListItem>
             )}
 
             {chat.unreadCount > 0 && (

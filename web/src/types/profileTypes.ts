@@ -1,5 +1,11 @@
 // Generated types for Profile
 
+
+export interface User {
+  id: string;
+  username: string;
+  profilePic: string;
+}
 export interface UpdateProfilePayload {
   username?: string;
   email?: string;

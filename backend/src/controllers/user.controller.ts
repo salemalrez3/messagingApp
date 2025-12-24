@@ -458,7 +458,7 @@ export const requestOtp = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Password is required" });
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({ where: { email,password } });
     if (!user) return res.status(404).json({ error: "User not found" });
 
     const match = await bcrypt.compare(password, user.password);
