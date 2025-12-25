@@ -44,6 +44,7 @@ model Chat {
   participants User[]           @relation("ChatParticipants")
   messages     Message[]
   readStatuses ChatReadStatus[]
+  @@index([updatedAt])
 }
 
 model Message {
@@ -68,6 +69,9 @@ model Message {
 
   // relations
   deliveries MessageDelivery[]
+    @@index([chatId, createdAt])
+  @@index([senderId])
+  @@index([replyToMessageId])
 }
 
 model MessageDelivery {
@@ -96,6 +100,7 @@ model ChatReadStatus {
   @@unique([chatId, userId])
   @@index([chatId])
   @@index([userId])
+  @@index([lastSeenMessageId])
 }
 
 model OTP {
@@ -104,4 +109,6 @@ model OTP {
   code      String
   expiresAt DateTime
   createdAt DateTime @default(now())
+  @@index([email])
+  @@index([expiresAt])
 }
