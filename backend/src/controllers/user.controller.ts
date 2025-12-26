@@ -679,6 +679,11 @@ export const resetPassword = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "New password is required" });
     }
 
+    
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
     const record = await prisma.oTP.findFirst({ 
       where: { 
         email, 
@@ -698,10 +703,6 @@ export const resetPassword = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "OTP expired" });
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
 
     const hashed = await bcrypt.hash(newPassword, 10);
 
@@ -712,14 +713,14 @@ export const resetPassword = async (req: Request, res: Response) => {
      const token = createToken(user.id, email);
     await prisma.oTP.delete({ where: { id: record.id } });
 
-    return res.status(200).json({ msg: "Password reset successful." ,newUser,token});
+    return res.status(200).json({ msg: "Password reset successful." ,user:newUser,token});
 
   } catch (error: any) {
     return res.status(500).json({ error: "Server error", details: error.message });
   }
 };
 
-// ---------- RESET PASSWORD ----------
+// ---------- FORGOT PASSWORD ----------
 /**
  * @swagger
  * /resetPassword:
@@ -764,7 +765,7 @@ export const resetPassword = async (req: Request, res: Response) => {
  *                 msg:
  *                   type: string
  *                   example: "Password reset successful."
- *                 newUser:
+ *                 user:
  *                   type: object
  *                   properties:
  *                     id:
