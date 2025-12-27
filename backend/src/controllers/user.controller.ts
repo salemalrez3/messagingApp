@@ -84,7 +84,9 @@ export function generateOtp() {
  */
 
 export function createToken(userId: string, email?: string, tokenVersion = 0) {
-  return jwt.sign({ userId, email, tokenVersion }, JWT_SECRET, { expiresIn: "7d" });
+  return jwt.sign({ userId, email, tokenVersion }, JWT_SECRET, {
+    expiresIn: "7d",
+  });
 }
 
 // ---------- REGISTER ----------
@@ -158,7 +160,9 @@ export function createToken(userId: string, email?: string, tokenVersion = 0) {
  */
 export const register = async (req: Request, res: Response) => {
   try {
-    const email = req.body.email ? String(req.body.email).toLowerCase().trim() : "";
+    const email = req.body.email
+      ? String(req.body.email).toLowerCase().trim()
+      : "";
     const password = req.body.password ? String(req.body.password) : "";
     const username = req.body.username ? String(req.body.username).trim() : "";
 
@@ -176,39 +180,39 @@ export const register = async (req: Request, res: Response) => {
     // Check if user already exists
     const existingUser = await prisma.user.findFirst({
       where: {
-        OR: [
-          { email },
-          { username },
-        ]
-      }
+        OR: [{ email }, { username }],
+      },
     });
 
     if (existingUser) {
       if (existingUser.email === email) {
-        return res.status(409).json({ error: "User with this email already exists" });
+        return res
+          .status(409)
+          .json({ error: "User with this email already exists" });
       }
       if (existingUser.username === username) {
-        return res.status(409).json({ error: "User with this username already exists" });
+        return res
+          .status(409)
+          .json({ error: "User with this username already exists" });
       }
     }
 
     const otp = generateOtp();
-    
-    await prisma.oTP.deleteMany({where:{email}});
+
+    await prisma.oTP.deleteMany({ where: { email } });
     await prisma.oTP.create({
-      data:{
-        code:otp,
+      data: {
+        code: otp,
         email,
-        expiresAt:new Date(Date.now() + 5 * 60 * 1000)
-        
-      }
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      },
     });
 
-    res.status(201).json({ 
-      message: "OTP sent to email. Use /verify-register endpoint with OTP to complete registration.",
-      debug_otp: otp 
+    res.status(201).json({
+      message:
+        "OTP sent to email. Use /verify-register endpoint with OTP to complete registration.",
+      debug_otp: otp,
     });
-
   } catch (error: any) {
     res.status(500).json({ error: "Server error", details: error.message });
   }
@@ -277,9 +281,11 @@ export const register = async (req: Request, res: Response) => {
  *       500:
  *         description: Internal server error
  */
-export const verifyRegister = async (req:Request,res:Response)=>{
+export const verifyRegister = async (req: Request, res: Response) => {
   try {
-    const email = req.body.email ? String(req.body.email).toLowerCase().trim() : "";
+    const email = req.body.email
+      ? String(req.body.email).toLowerCase().trim()
+      : "";
     const password = req.body.password ? String(req.body.password) : "";
     const otp = req.body.otp ? String(req.body.otp) : "";
     const phone = req.body.phone ? String(req.body.phone).trim() : "";
@@ -295,7 +301,7 @@ export const verifyRegister = async (req:Request,res:Response)=>{
     if (!otp) {
       return res.status(400).json({ error: "OTP is required" });
     }
-    
+
     if (!username) {
       return res.status(400).json({ error: "Username is required" });
     }
@@ -303,19 +309,20 @@ export const verifyRegister = async (req:Request,res:Response)=>{
     // Check if user already exists (double-check)
     const existingUser = await prisma.user.findFirst({
       where: {
-        OR: [
-          { email },
-          { username },
-        ]
-      }
+        OR: [{ email }, { username }],
+      },
     });
 
     if (existingUser) {
       if (existingUser.email === email) {
-        return res.status(409).json({ error: "User with this email already exists" });
+        return res
+          .status(409)
+          .json({ error: "User with this email already exists" });
       }
       if (existingUser.username === username) {
-        return res.status(409).json({ error: "User with this username already exists" });
+        return res
+          .status(409)
+          .json({ error: "User with this username already exists" });
       }
     }
 
@@ -325,58 +332,61 @@ export const verifyRegister = async (req:Request,res:Response)=>{
         email,
         code: otp,
         expiresAt: {
-          gt: new Date() 
-        }
-      }
+          gt: new Date(),
+        },
+      },
     });
-    
-    if (!valid){
-      return res.status(401).json({error:"Invalid or expired OTP"});
+
+    if (!valid) {
+      return res.status(401).json({ error: "Invalid or expired OTP" });
     }
 
     if (valid.expiresAt < new Date()) {
       await prisma.oTP.delete({ where: { id: valid.id } });
-      return res.status(401).json({error:"OTP has expired"});
+      return res.status(401).json({ error: "OTP has expired" });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    
+
     const user = await prisma.user.create({
       data: {
         email,
         password: hashedPassword,
         phone: phone,
-        username
+        username,
       },
       select: {
         id: true,
         email: true,
         username: true,
         phone: true,
-        createdAt: true
-      }
+        createdAt: true,
+      },
     });
-    
+
     const token = createToken(user.id, email);
     await prisma.oTP.delete({ where: { id: valid.id } });
-    
+
     res.status(201).json({
       token,
       user,
-      message: "User created successfully"
+      message: "User created successfully",
     });
-
   } catch (error: any) {
-    if (error.code === 'P2002') {
-      if (error.meta?.target?.includes('email')) {
-        return res.status(409).json({ error: "User with this email already exists" });
+    if (error.code === "P2002") {
+      if (error.meta?.target?.includes("email")) {
+        return res
+          .status(409)
+          .json({ error: "User with this email already exists" });
       }
-      if (error.meta?.target?.includes('username')) {
-        return res.status(409).json({ error: "User with this username already exists" });
+      if (error.meta?.target?.includes("username")) {
+        return res
+          .status(409)
+          .json({ error: "User with this username already exists" });
       }
       return res.status(409).json({ error: "User already exists" });
     }
-    
+
     res.status(500).json({ error: "Server error", details: error.message });
   }
 };
@@ -448,7 +458,9 @@ export const verifyRegister = async (req:Request,res:Response)=>{
  */
 export const requestOtp = async (req: Request, res: Response) => {
   try {
-    const email = req.body.email ? String(req.body.email).toLowerCase().trim() : "";
+    const email = req.body.email
+      ? String(req.body.email).toLowerCase().trim()
+      : "";
     const password = req.body.password ? String(req.body.password) : "";
 
     if (!email) {
@@ -457,12 +469,20 @@ export const requestOtp = async (req: Request, res: Response) => {
     if (!password) {
       return res.status(400).json({ error: "Password is required" });
     }
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
 
-    const user = await prisma.user.findUnique({ where: { email,password } });
-    if (!user) return res.status(404).json({ error: "User not found" });
+    if (!user) {
+      return res.status(401).json({ error: "Invalid credentials ( No user with this email )" }); // Changed from "Email not found" for security
+    }
+    
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ error: "Invalid credentials ( Wrong password) " });
+    }
 
-    const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(401).json({ error: "Invalid password" });
+    // Removed duplicate password check
 
     const code = generateOtp();
 
@@ -477,7 +497,6 @@ export const requestOtp = async (req: Request, res: Response) => {
     });
 
     res.status(200).json({ msg: "OTP sent to your email", debugOtp: code });
-
   } catch (error: any) {
     res.status(500).json({ error: "Server error", details: error.message });
   }
@@ -546,36 +565,41 @@ export const requestOtp = async (req: Request, res: Response) => {
  */
 export const verifyOtp = async (req: Request, res: Response) => {
   try {
-    const email = req.body.email ? String(req.body.email).toLowerCase().trim() : "";
+    const email = req.body.email
+      ? String(req.body.email).toLowerCase().trim()
+      : "";
     const otp = req.body.otp ? String(req.body.otp) : "";
-    const password = req.body.password ? String(req.body.password) : "";
+    // Removed password from here since OTP verification doesn't need password
+    
     if (!email) {
       return res.status(400).json({ error: "Email is required" });
     }
     if (!otp) {
       return res.status(400).json({ error: "OTP is required" });
     }
-   const user = await prisma.user.findUnique({
-      where: { email,password},
+    
+    // FIXED: Only query by email, not by password
+    const user = await prisma.user.findUnique({
+      where: { email },
       select: {
         id: true,
         email: true,
         username: true,
-        phone: true
-      }
+        phone: true,
+      },
     });
-    
+
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
     const record = await prisma.oTP.findFirst({
-      where: { 
-        email, 
+      where: {
+        email,
         code: otp,
         expiresAt: {
-          gt: new Date() 
-        }
+          gt: new Date(),
+        },
       },
     });
 
@@ -589,17 +613,18 @@ export const verifyOtp = async (req: Request, res: Response) => {
     }
 
     await prisma.oTP.delete({ where: { id: record.id } });
-    
+
     const token = createToken(user.id, user.email);
 
     return res.status(200).json({
       msg: "OTP verified.",
       token,
-      user
+      user,
     });
-
   } catch (error: any) {
-    return res.status(500).json({ error: "Server error", details: error.message });
+    return res
+      .status(500)
+      .json({ error: "Server error", details: error.message });
   }
 };
 
@@ -665,9 +690,13 @@ export const verifyOtp = async (req: Request, res: Response) => {
  */
 export const resetPassword = async (req: Request, res: Response) => {
   try {
-    const email = req.body.email ? String(req.body.email).toLowerCase().trim() : "";
+    const email = req.body.email
+      ? String(req.body.email).toLowerCase().trim()
+      : "";
     const otp = req.body.otp ? String(req.body.otp) : "";
-    const newPassword = req.body.newPassword ? String(req.body.newPassword) : "";
+    const newPassword = req.body.newPassword
+      ? String(req.body.newPassword)
+      : "";
 
     if (!email) {
       return res.status(400).json({ error: "Email is required" });
@@ -679,19 +708,18 @@ export const resetPassword = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "New password is required" });
     }
 
-    
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
-    const record = await prisma.oTP.findFirst({ 
-      where: { 
-        email, 
+    const record = await prisma.oTP.findFirst({
+      where: {
+        email,
         code: otp,
         expiresAt: {
-          gt: new Date() 
-        }
-      } 
+          gt: new Date(),
+        },
+      },
     });
 
     if (!record) {
@@ -703,31 +731,44 @@ export const resetPassword = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "OTP expired" });
     }
 
-
     const hashed = await bcrypt.hash(newPassword, 10);
 
-   const newUser = await prisma.user.update({
+    const updatedUser = await prisma.user.update({
       where: { email },
       data: { password: hashed },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        phone: true,
+      }
     });
-     const token = createToken(user.id, email);
+    
+    const token = createToken(user.id, email);
     await prisma.oTP.delete({ where: { id: record.id } });
 
-    return res.status(200).json({ msg: "Password reset successful." ,user:newUser,token});
-
+    return res
+      .status(200)
+      .json({ 
+        msg: "Password reset successful.", 
+        user: updatedUser, 
+        token 
+      });
   } catch (error: any) {
-    return res.status(500).json({ error: "Server error", details: error.message });
+    return res
+      .status(500)
+      .json({ error: "Server error", details: error.message });
   }
 };
 
 // ---------- FORGOT PASSWORD ----------
 /**
  * @swagger
- * /resetPassword:
+ * /forgotPassword:
  *   post:
- *     summary: Reset password using OTP
+ *     summary: Request OTP for password reset
  *     tags: [Authentication]
- *     description: Validates OTP and allows the user to set a new password. Returns authentication token upon success.
+ *     description: Sends OTP to email for password reset
  *     requestBody:
  *       required: true
  *       content:
@@ -736,27 +777,14 @@ export const resetPassword = async (req: Request, res: Response) => {
  *             type: object
  *             required:
  *               - email
- *               - otp
- *               - newPassword
  *             properties:
  *               email:
  *                 type: string
  *                 format: email
  *                 example: user@example.com
- *               otp:
- *                 type: string
- *                 minLength: 6
- *                 maxLength: 6
- *                 pattern: '^[0-9]{6}$'
- *                 example: "123456"
- *               newPassword:
- *                 type: string
- *                 format: password
- *                 minLength: 6
- *                 example: "newStrongPassword123"
  *     responses:
  *       200:
- *         description: Password reset successful. Returns user data and authentication token.
+ *         description: OTP sent successfully
  *         content:
  *           application/json:
  *             schema:
@@ -764,56 +792,22 @@ export const resetPassword = async (req: Request, res: Response) => {
  *               properties:
  *                 msg:
  *                   type: string
- *                   example: "Password reset successful."
- *                 user:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: string
- *                     email:
- *                       type: string
- *                     # Add other user properties as needed
- *                 token:
+ *                   example: "OTP sent to your email"
+ *                 debugOtp:
  *                   type: string
- *                   description: JWT authentication token
- *                   example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *                   example: "123456"
  *       400:
- *         description: Invalid request - missing fields, invalid OTP, or expired OTP
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
- *                   example: "Invalid or expired OTP"
+ *         description: Email is required
  *       404:
  *         description: User not found
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
- *                   example: "User not found"
  *       500:
  *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
- *                   example: "Server error"
- *                 details:
- *                   type: string
- *                   example: "Error details here"
  */
 export const forgotPassword = async (req: Request, res: Response) => {
   try {
-    const email = req.body.email ? String(req.body.email).toLowerCase().trim() : "";
+    const email = req.body.email
+      ? String(req.body.email).toLowerCase().trim()
+      : "";
 
     if (!email) {
       return res.status(400).json({ error: "Email is required" });
@@ -834,9 +828,12 @@ export const forgotPassword = async (req: Request, res: Response) => {
       },
     });
 
-    return res.status(200).json({ msg: "OTP sent to your email", debugOtp: code });
-
+    return res
+      .status(200)
+      .json({ msg: "OTP sent to your email", debugOtp: code });
   } catch (error: any) {
-    return res.status(500).json({ error: "Server error", details: error.message });
+    return res
+      .status(500)
+      .json({ error: "Server error", details: error.message });
   }
 };
